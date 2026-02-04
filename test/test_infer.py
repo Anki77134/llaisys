@@ -20,7 +20,9 @@ def load_hf_model(model_path=None, device_name="cpu"):
     if model_path and os.path.isdir(model_path):
         print(f"Loading model from local path: {model_path}")
     else:
-        print(f"Loading model from Hugging Face: {model_id}")
+        # 设置镜像源环境变量
+        os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+        print(f"Loading model from Hugging Face mirror: {model_id}")
         model_path = snapshot_download(model_id)
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
     model = AutoModelForCausalLM.from_pretrained(
