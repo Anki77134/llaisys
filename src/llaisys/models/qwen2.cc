@@ -1,6 +1,7 @@
 #include "llaisys/models/qwen2.h"
 #include "../../models/qwen2/qwen2.hpp"
 #include "../../core/llaisys_core.hpp"
+#include "../llaisys_tensor.hpp"
 
 using namespace llaisys;
 
@@ -53,10 +54,10 @@ __export struct LlaisysQwen2Weights *llaisysQwen2ModelWeights(struct LlaisysQwen
     // Allocate C struct
     auto weights = new LlaisysQwen2Weights();
 
-    // Copy pointers (shallow copy)
-    weights->in_embed = reinterpret_cast<llaisysTensor_t>(cpp_weights.embed_tokens.get());
-    weights->out_embed = reinterpret_cast<llaisysTensor_t>(cpp_weights.lm_head.get());
-    weights->out_norm_w = reinterpret_cast<llaisysTensor_t>(cpp_weights.norm_weight.get());
+    // Wrap tensor_t (shared_ptr) in LlaisysTensor struct
+    weights->in_embed = new LlaisysTensor{cpp_weights.embed_tokens};
+    weights->out_embed = new LlaisysTensor{cpp_weights.lm_head};
+    weights->out_norm_w = new LlaisysTensor{cpp_weights.norm_weight};
 
     // Allocate arrays for per-layer weights
     size_t n_layers = config.n_layers;
@@ -75,18 +76,18 @@ __export struct LlaisysQwen2Weights *llaisysQwen2ModelWeights(struct LlaisysQwen
     weights->mlp_down_w = new llaisysTensor_t[n_layers];
 
     for (size_t i = 0; i < n_layers; i++) {
-        weights->attn_norm_w[i] = reinterpret_cast<llaisysTensor_t>(cpp_weights.attn_norm_weight[i].get());
-        weights->attn_q_w[i] = reinterpret_cast<llaisysTensor_t>(cpp_weights.attn_q_weight[i].get());
-        weights->attn_q_b[i] = reinterpret_cast<llaisysTensor_t>(cpp_weights.attn_q_bias[i].get());
-        weights->attn_k_w[i] = reinterpret_cast<llaisysTensor_t>(cpp_weights.attn_k_weight[i].get());
-        weights->attn_k_b[i] = reinterpret_cast<llaisysTensor_t>(cpp_weights.attn_k_bias[i].get());
-        weights->attn_v_w[i] = reinterpret_cast<llaisysTensor_t>(cpp_weights.attn_v_weight[i].get());
-        weights->attn_v_b[i] = reinterpret_cast<llaisysTensor_t>(cpp_weights.attn_v_bias[i].get());
-        weights->attn_o_w[i] = reinterpret_cast<llaisysTensor_t>(cpp_weights.attn_o_weight[i].get());
-        weights->mlp_norm_w[i] = reinterpret_cast<llaisysTensor_t>(cpp_weights.mlp_norm_weight[i].get());
-        weights->mlp_gate_w[i] = reinterpret_cast<llaisysTensor_t>(cpp_weights.mlp_gate_weight[i].get());
-        weights->mlp_up_w[i] = reinterpret_cast<llaisysTensor_t>(cpp_weights.mlp_up_weight[i].get());
-        weights->mlp_down_w[i] = reinterpret_cast<llaisysTensor_t>(cpp_weights.mlp_down_weight[i].get());
+        weights->attn_norm_w[i] = new LlaisysTensor{cpp_weights.attn_norm_weight[i]};
+        weights->attn_q_w[i] = new LlaisysTensor{cpp_weights.attn_q_weight[i]};
+        weights->attn_q_b[i] = new LlaisysTensor{cpp_weights.attn_q_bias[i]};
+        weights->attn_k_w[i] = new LlaisysTensor{cpp_weights.attn_k_weight[i]};
+        weights->attn_k_b[i] = new LlaisysTensor{cpp_weights.attn_k_bias[i]};
+        weights->attn_v_w[i] = new LlaisysTensor{cpp_weights.attn_v_weight[i]};
+        weights->attn_v_b[i] = new LlaisysTensor{cpp_weights.attn_v_bias[i]};
+        weights->attn_o_w[i] = new LlaisysTensor{cpp_weights.attn_o_weight[i]};
+        weights->mlp_norm_w[i] = new LlaisysTensor{cpp_weights.mlp_norm_weight[i]};
+        weights->mlp_gate_w[i] = new LlaisysTensor{cpp_weights.mlp_gate_weight[i]};
+        weights->mlp_up_w[i] = new LlaisysTensor{cpp_weights.mlp_up_weight[i]};
+        weights->mlp_down_w[i] = new LlaisysTensor{cpp_weights.mlp_down_weight[i]};
     }
 
     return weights;

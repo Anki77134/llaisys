@@ -14,19 +14,16 @@ void rope_(T *out, const T *in, const int64_t *pos_ids,
 
     size_t half_dim = head_dim / 2;
 
-    // Precompute frequency divisors to improve numerical stability
-    std::vector<float> inv_freq(half_dim);
-    for (size_t j = 0; j < half_dim; j++) {
-        inv_freq[j] = 1.0 / std::pow(theta, (2.0 * j) / static_cast<double>(head_dim));
-    }
-
     for (size_t s = 0; s < seq_len; s++) {
         float pos = static_cast<float>(pos_ids[s]);
 
         for (size_t h = 0; h < n_heads; h++) {
             for (size_t j = 0; j < half_dim; j++) {
-                // Calculate angle
-                float angle = pos * inv_freq[j];
+                // Calculate angle: pos / (theta^(2j/d)) to match PyTorch exactly
+                // Using the same calculation order as PyTorch
+                float exponent = (2.0f * static_cast<float>(j)) / static_cast<float>(head_dim);
+                float divisor = std::pow(theta, exponent);
+                float angle = pos / divisor;
                 float cos_angle = std::cos(angle);
                 float sin_angle = std::sin(angle);
 

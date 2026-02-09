@@ -59,29 +59,36 @@ class Qwen2:
 
     def _load_weights(self, model_path):
         """Load weights from safetensors files"""
+        import torch
+        import numpy as np
+        import ctypes
+        self.weight_tensors = []  # Keep references to prevent garbage collection
         weight_map = {}
 
         for file in sorted(model_path.glob("*.safetensors")):
-            with safetensors.safe_open(file, framework="numpy", device="cpu") as f:
+            with safetensors.safe_open(file, framework="pt", device="cpu") as f:
                 for name in f.keys():
-                    weight_map[name] = f.get_tensor(name)
+                    # Load as contiguous PyTorch tensor
+                    pt_tensor = f.get_tensor(name).contiguous()
+                    self.weight_tensors.append(pt_tensor)  # Keep alive
+                    weight_map[name] = pt_tensor
 
         # Load embedding
         if "model.embed_tokens.weight" in weight_map:
             embed_data = weight_map["model.embed_tokens.weight"]
             tensor = Tensor.from_ptr(self._weights.in_embed)
-            tensor.load(embed_data.ctypes.data)
+            tensor.load(ctypes.c_void_p(embed_data.data_ptr()))
 
         # Load output norm and lm_head
         if "model.norm.weight" in weight_map:
             norm_data = weight_map["model.norm.weight"]
             tensor = Tensor.from_ptr(self._weights.out_norm_w)
-            tensor.load(norm_data.ctypes.data)
+            tensor.load(ctypes.c_void_p(norm_data.data_ptr()))
 
         if "lm_head.weight" in weight_map:
             lm_head_data = weight_map["lm_head.weight"]
             tensor = Tensor.from_ptr(self._weights.out_embed)
-            tensor.load(lm_head_data.ctypes.data)
+            tensor.load(ctypes.c_void_p(lm_head_data.data_ptr()))
 
         # Load per-layer weights
         for layer_idx in range(self._meta.nlayer):
@@ -91,66 +98,66 @@ class Qwen2:
             if f"{prefix}.input_layernorm.weight" in weight_map:
                 data = weight_map[f"{prefix}.input_layernorm.weight"]
                 tensor = Tensor.from_ptr(self._weights.attn_norm_w[layer_idx])
-                tensor.load(data.ctypes.data)
+                tensor.load(ctypes.c_void_p(data.data_ptr()))
 
             # Q, K, V projections
             if f"{prefix}.self_attn.q_proj.weight" in weight_map:
                 data = weight_map[f"{prefix}.self_attn.q_proj.weight"]
                 tensor = Tensor.from_ptr(self._weights.attn_q_w[layer_idx])
-                tensor.load(data.ctypes.data)
+                tensor.load(ctypes.c_void_p(data.data_ptr()))
 
             if f"{prefix}.self_attn.q_proj.bias" in weight_map:
                 data = weight_map[f"{prefix}.self_attn.q_proj.bias"]
                 tensor = Tensor.from_ptr(self._weights.attn_q_b[layer_idx])
-                tensor.load(data.ctypes.data)
+                tensor.load(ctypes.c_void_p(data.data_ptr()))
 
             if f"{prefix}.self_attn.k_proj.weight" in weight_map:
                 data = weight_map[f"{prefix}.self_attn.k_proj.weight"]
                 tensor = Tensor.from_ptr(self._weights.attn_k_w[layer_idx])
-                tensor.load(data.ctypes.data)
+                tensor.load(ctypes.c_void_p(data.data_ptr()))
 
             if f"{prefix}.self_attn.k_proj.bias" in weight_map:
                 data = weight_map[f"{prefix}.self_attn.k_proj.bias"]
                 tensor = Tensor.from_ptr(self._weights.attn_k_b[layer_idx])
-                tensor.load(data.ctypes.data)
+                tensor.load(ctypes.c_void_p(data.data_ptr()))
 
             if f"{prefix}.self_attn.v_proj.weight" in weight_map:
                 data = weight_map[f"{prefix}.self_attn.v_proj.weight"]
                 tensor = Tensor.from_ptr(self._weights.attn_v_w[layer_idx])
-                tensor.load(data.ctypes.data)
+                tensor.load(ctypes.c_void_p(data.data_ptr()))
 
             if f"{prefix}.self_attn.v_proj.bias" in weight_map:
                 data = weight_map[f"{prefix}.self_attn.v_proj.bias"]
                 tensor = Tensor.from_ptr(self._weights.attn_v_b[layer_idx])
-                tensor.load(data.ctypes.data)
+                tensor.load(ctypes.c_void_p(data.data_ptr()))
 
             # O projection
             if f"{prefix}.self_attn.o_proj.weight" in weight_map:
                 data = weight_map[f"{prefix}.self_attn.o_proj.weight"]
                 tensor = Tensor.from_ptr(self._weights.attn_o_w[layer_idx])
-                tensor.load(data.ctypes.data)
+                tensor.load(ctypes.c_void_p(data.data_ptr()))
 
             # MLP norm
             if f"{prefix}.post_attention_layernorm.weight" in weight_map:
                 data = weight_map[f"{prefix}.post_attention_layernorm.weight"]
                 tensor = Tensor.from_ptr(self._weights.mlp_norm_w[layer_idx])
-                tensor.load(data.ctypes.data)
+                tensor.load(ctypes.c_void_p(data.data_ptr()))
 
             # MLP projections
             if f"{prefix}.mlp.gate_proj.weight" in weight_map:
                 data = weight_map[f"{prefix}.mlp.gate_proj.weight"]
                 tensor = Tensor.from_ptr(self._weights.mlp_gate_w[layer_idx])
-                tensor.load(data.ctypes.data)
+                tensor.load(ctypes.c_void_p(data.data_ptr()))
 
             if f"{prefix}.mlp.up_proj.weight" in weight_map:
                 data = weight_map[f"{prefix}.mlp.up_proj.weight"]
                 tensor = Tensor.from_ptr(self._weights.mlp_up_w[layer_idx])
-                tensor.load(data.ctypes.data)
+                tensor.load(ctypes.c_void_p(data.data_ptr()))
 
             if f"{prefix}.mlp.down_proj.weight" in weight_map:
                 data = weight_map[f"{prefix}.mlp.down_proj.weight"]
                 tensor = Tensor.from_ptr(self._weights.mlp_down_w[layer_idx])
-                tensor.load(data.ctypes.data)
+                tensor.load(ctypes.c_void_p(data.data_ptr()))
 
     def generate(
         self,
@@ -168,13 +175,25 @@ class Qwen2:
         generated = list(inputs)
         max_gen = max_new_tokens if max_new_tokens else 100
 
-        for _ in range(max_gen):
-            # Convert to ctypes array
-            input_array = (ctypes.c_int64 * len(generated))(*generated)
+        # First forward pass with full prompt
+        input_array = (ctypes.c_int64 * len(generated))(*generated)
+        next_token = LIB_LLAISYS.llaisysQwen2ModelInfer(
+            self._model, input_array, len(generated)
+        )
 
-            # Call inference
+        if next_token < 0 or next_token == self._meta.end_token:
+            generated.append(next_token)
+            return generated
+
+        generated.append(next_token)
+
+        # Subsequent passes: only send new token (using KV cache)
+        for _ in range(max_gen - 1):
+            # Only send the last generated token
+            input_array = (ctypes.c_int64 * 1)(generated[-1])
+
             next_token = LIB_LLAISYS.llaisysQwen2ModelInfer(
-                self._model, input_array, len(generated)
+                self._model, input_array, 1
             )
 
             if next_token < 0:

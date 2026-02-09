@@ -14,15 +14,13 @@ import io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
 
-def load_hf_model(model_path=None, device_name="cpu"):
+def load_hf_model(model_path="/root/autodl-tmp/llaisys/model", device_name="cpu"):
     model_id = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
 
     if model_path and os.path.isdir(model_path):
         print(f"Loading model from local path: {model_path}")
     else:
-        # 设置镜像源环境变量
-        os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
-        print(f"Loading model from Hugging Face mirror: {model_id}")
+        print(f"Loading model from Hugging Face: {model_id}")
         model_path = snapshot_download(model_id)
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
     model = AutoModelForCausalLM.from_pretrained(
@@ -84,7 +82,7 @@ def llaisys_infer(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", default="cpu", choices=["cpu", "nvidia"], type=str)
-    parser.add_argument("--model", default=None, type=str)
+    parser.add_argument("--model", default="/root/autodl-tmp/llaisys/model", type=str)
     parser.add_argument("--prompt", default="Who are you?", type=str)
     parser.add_argument("--max_steps", default=128, type=int)
     parser.add_argument("--top_p", default=0.8, type=float)
